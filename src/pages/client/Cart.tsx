@@ -2,10 +2,10 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { Button } from '../../components/ui/Button';
 import { formatCurrency } from '../../lib/utils';
-import { Trash2, ArrowRight, ShoppingBag } from 'lucide-react';
+import { Trash2, ArrowRight, ShoppingBag, Plus, Minus } from 'lucide-react';
 
 export default function Cart() {
-  const { cart, removeFromCart, settings } = useStore();
+  const { cart, removeFromCart, updateCartQuantity, settings } = useStore();
   const navigate = useNavigate();
 
   const subtotal = cart.reduce((sum, item) => sum + (item.product.price_usd * item.quantity), 0);
@@ -55,8 +55,38 @@ export default function Cart() {
                 </div>
                 
                 <div className="flex justify-between items-end">
-                  <div className="text-sm text-[var(--color-text-secondary)]">
-                    Cant: <span className="font-medium text-[var(--color-text-primary)]">{item.quantity}</span>
+                  <div className="flex items-center gap-3 bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-1">
+                    <button 
+                      onClick={() => item.quantity > 1 ? updateCartQuantity(item.product.id, item.quantity - 1) : removeFromCart(item.product.id)}
+                      className="p-1 hover:bg-[var(--color-surface)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <input 
+                      type="number"
+                      min="1"
+                      className="w-12 text-center bg-transparent font-medium text-sm focus:outline-none"
+                      value={item.quantity}
+                      onChange={(e) => {
+                         const val = parseInt(e.target.value);
+                         if (!isNaN(val) && val > 0) {
+                             updateCartQuantity(item.product.id, val);
+                         } else if (e.target.value === '') {
+                             // allow empty while typing
+                         }
+                      }}
+                      onBlur={(e) => {
+                         if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                             updateCartQuantity(item.product.id, 1);
+                         }
+                      }}
+                    />
+                    <button 
+                      onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
+                      className="p-1 hover:bg-[var(--color-surface)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
                   </div>
                   <div className="text-right">
                     <div className="font-bold text-[var(--color-primary)]">

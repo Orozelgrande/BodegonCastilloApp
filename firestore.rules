@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.size() >= 2 && data.size() <= 5 &&
+               data.email is string && data.email.size() <= 200 &&
+               data.role is string &&
+               (data.createdAt == request.time || data.createdAt is string);
+      }
+
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) &&
+                       isValidUser(incoming()) && 
+                       (incoming().role == 'client' || (incoming().role == 'admin' && request.auth.token.email == 'andresorozco199417@gmail.com'));
+                       
+      allow update: if isSignedIn() && (
+        (isAdmin() && isValidUser(incoming())) ||
+        (request.auth.uid == userId && isValidUser(incoming()) && (incoming().role == existing().role || (incoming().role == 'admin' && request.auth.token.email == 'andresorozco199417@gmail.com')))
+      );
+    }
+
+    match /products/{productId} {
+      function isValidProduct(data) {
+        return data.size() >= 3 &&
+               data.name is string && data.name.size() <= 200 &&
+               data.price_usd is number &&
+               data.category is string && data.category.size() <= 100;
+      }
+      
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(productId) && isValidProduct(incoming());
+      allow update: if isAdmin() && isValidProduct(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      function isValidOrder(data) {
+         return data.size() >= 3 &&
+                data.clientId is string && data.clientId.size() <= 128 &&
+                data.totalUsd is number &&
+                data.status is string &&
+                data.items is list && data.items.size() <= 100;
+      }
+
+      allow get: if isSignedIn() && (existing().clientId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.clientId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() && isValidId(orderId) &&
+                       isValidOrder(incoming()) &&
+                       incoming().clientId == request.auth.uid &&
+                       incoming().status == 'pending_verification';
+
+      allow update: if isAdmin() && isValidOrder(incoming());
+    }
+  }
+}

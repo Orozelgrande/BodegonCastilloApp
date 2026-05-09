@@ -2,13 +2,16 @@ import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Search, User, Menu, LogOut, ShieldAlert } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { Button } from '../components/ui/Button';
+import { auth } from '../lib/firebase';
+import { signOut } from 'firebase/auth';
 
 export default function ClientLayout() {
   const { settings, cart, currentUser, isAdmin, logout } = useStore();
   const navigate = useNavigate();
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await signOut(auth); } catch(e) {}
     logout();
     navigate('/login');
   };
@@ -23,7 +26,8 @@ export default function ClientLayout() {
               <Menu className="h-5 w-5" />
             </Button>
             <Link to="/home" className="flex items-center gap-2">
-              <span className="font-serif text-xl font-bold tracking-tight text-[var(--color-primary)]">
+              <img src="https://i.postimg.cc/1nY7LgxD/image.png" alt={settings.name} className="h-10 w-auto object-contain" />
+              <span className="font-serif text-xl font-bold tracking-tight text-[var(--color-primary)] hidden sm:inline-block">
                 {settings.name}
               </span>
             </Link>
@@ -52,6 +56,9 @@ export default function ClientLayout() {
             
             {currentUser ? (
               <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => navigate('/my-orders')} className="hidden sm:flex">
+                  Mis Pedidos
+                </Button>
                 {isAdmin && (
                   <Button variant="ghost" size="icon" onClick={() => navigate('/admin')} title="Panel de Admin">
                     <ShieldAlert className="h-5 w-5 text-[var(--color-primary)]" />

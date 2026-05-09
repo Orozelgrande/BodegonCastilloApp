@@ -39,6 +39,9 @@ export interface Order {
   items: CartItem[];
   payment_method?: string;
   reference?: string;
+  delivery_type?: 'delivery' | 'pickup';
+  address?: string;
+  location?: { lat: number; lng: number };
 }
 
 export interface TenantSettings {

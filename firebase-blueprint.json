@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Product in the catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "brand": { "type": "string" },
+        "category": { "type": "string" },
+        "presentation": { "type": "string" },
+        "price_usd": { "type": "number" },
+        "stock": { "type": "number" },
+        "image_url": { "type": "string" },
+        "is_featured": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "price_usd"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile with role",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["client", "admin"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email", "role"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "User order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "totalUsd": { "type": "number" },
+        "totalBs": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending_verification", "confirmed", "in_transit", "delivered", "cancelled"] },
+        "payment_method": { "type": "string" },
+        "reference": { "type": "string" },
+        "items": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["clientId", "totalUsd", "status"]
+    }
+  },
+  "firestore": {
+    "products/{productId}": {
+      "schema": { "$ref": "Product" },
+      "description": "Product document"
+    },
+    "users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "User document containing roles and email"
+    },
+    "orders/{orderId}": {
+      "schema": { "$ref": "Order" },
+      "description": "Order records"
+    }
+  }
+}

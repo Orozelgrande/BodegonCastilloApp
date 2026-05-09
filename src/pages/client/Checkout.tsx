@@ -1,16 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { formatCurrency } from '../../lib/utils';
-import { CheckCircle2, UploadCloud } from 'lucide-react';
+import { CheckCircle2, UploadCloud, MapPin, Store } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix for default leaflet icons in React
+// @ts-ignore
+import icon from 'leaflet/dist/images/marker-icon.png';
+// @ts-ignore
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
+function LocationMarker({ location, setLocation }: { location: {lat: number, lng: number} | null, setLocation: (loc: {lat: number, lng: number}) => void }) {
+  const map = useMapEvents({
+    click(e) {
+      setLocation(e.latlng);
+    },
+  });
+
+  useEffect(() => {
+    if (location) {
+      map.flyTo(location, map.getZoom());
+    }
+  }, [location, map]);
+
+  return location === null ? null : (
+    <Marker position={location}></Marker>
+  );
+}
 
 export default function Checkout() {
   const { cart, settings, placeOrder, currentUser } = useStore();
   const navigate = useNavigate();
   
   const [step, setStep] = useState(1);
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
+  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+  
   const [formData, setFormData] = useState({
     name: currentUser?.fullName || '',
     phone: currentUser?.phone || '',
@@ -19,12 +56,35 @@ export default function Checkout() {
     reference: ''
   });
 
-  const total = cart.reduce((sum, item) => sum + (item.product.price_usd * item.quantity), 0) + settings.delivery_fee;
+  const total = cart.reduce((sum, item) => sum + (item.product.price_usd * item.quantity), 0) + (deliveryType === 'delivery' ? settings.delivery_fee : 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    placeOrder(formData.name, formData.paymentMethod, formData.reference);
+    placeOrder(formData.name, formData.paymentMethod, formData.reference, deliveryType, formData.address, location || undefined);
     setStep(3); // Success step
+  };
+
+  useEffect(() => {
+    // Try to get user location
+    if (navigator.geolocation && !location) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => setLocation({ lat: 8.8872, lng: -64.1683 }) // Default San José de Guanipa
+      );
+    } else if (!location) {
+        setLocation({ lat: 8.8872, lng: -64.1683 });
+    }
+  }, []);
+
+  const handleUseMyLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => alert("No se pudo obtener la ubicación. Por favor, verifica los permisos de tu navegador.")
+      );
+    } else {
+      alert("La geolocalización no está soportada por tu navegador.");
+    }
   };
 
   if (step === 3) {
@@ -35,7 +95,7 @@ export default function Checkout() {
         </div>
         <h2 className="text-3xl font-serif font-bold mb-4">¡Pedido Recibido!</h2>
         <p className="text-[var(--color-text-secondary)] mb-8">
-          Hemos recibido tu pedido y el comprobante de pago. Lo estamos verificando y pronto te notificaremos el estado del despacho.
+          Hemos recibido tu pedido y el comprobante de pago. Lo estamos verificando y pronto te notificaremos el estado {deliveryType === 'delivery' ? 'del despacho' : 'para el retiro'}.
         </p>
         <Button onClick={() => navigate('/home')} className="w-full">
           Volver al Inicio
@@ -51,11 +111,55 @@ export default function Checkout() {
       <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-8">
           
-          {/* Datos de Envío */}
+          {/* Tipo de Entrega */}
           <section>
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] flex items-center justify-center text-xs">1</span>
-              Datos de Envío
+              Método de Entrega
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setDeliveryType('delivery')}
+                className={`p-4 border rounded-xl flex items-center gap-3 transition-colors ${
+                  deliveryType === 'delivery' 
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 text-[var(--color-primary)]' 
+                  : 'border-[var(--color-border)] hover:border-[var(--color-text-secondary)] text-[var(--color-text-secondary)]'
+                }`}
+              >
+                <MapPin className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-bold">Delivery</div>
+                  <div className="text-xs opacity-80">+ {formatCurrency(settings.delivery_fee, 'USD')}</div>
+                </div>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setDeliveryType('pickup')}
+                className={`p-4 border rounded-xl flex items-center gap-3 transition-colors ${
+                  deliveryType === 'pickup' 
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 text-[var(--color-primary)]' 
+                  : 'border-[var(--color-border)] hover:border-[var(--color-text-secondary)] text-[var(--color-text-secondary)]'
+                }`}
+              >
+                <Store className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-bold">Pick-up</div>
+                  <div className="text-xs opacity-80">Gratis</div>
+                </div>
+              </button>
+            </div>
+          </section>
+
+          <hr className="border-[var(--color-border)]" />
+
+          {/* Datos del Cliente */}
+          <section>
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] flex items-center justify-center text-xs">2</span>
+              Datos {deliveryType === 'delivery' ? 'de Envío' : 'del Cliente'}
             </h3>
             <div className="grid gap-4">
               <div className="grid grid-cols-2 gap-4">
@@ -68,10 +172,36 @@ export default function Checkout() {
                   <Input required value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="0414-1234567" />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Dirección de Entrega</label>
-                <Input required value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Av. Principal, Edificio X, Apto Y" />
-              </div>
+              
+              {deliveryType === 'delivery' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Dirección de Entrega</label>
+                    <Input required={deliveryType === 'delivery'} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Av. Principal, Edificio X, Apto Y" />
+                  </div>
+                  <div>
+                     <div className="flex items-center justify-between mb-2">
+                       <label className="block text-sm font-medium text-[var(--color-text-secondary)]">Ubicación en el Mapa (Opcional)</label>
+                       <Button type="button" variant="outline" size="sm" onClick={handleUseMyLocation} className="text-xs h-8">
+                         <MapPin className="w-3 h-3 mr-2" />
+                         Usar mi ubicación
+                       </Button>
+                     </div>
+                     <div className="h-64 rounded-xl overflow-hidden border border-[var(--color-border)] z-0 isolate">
+                        {location && (
+                          <MapContainer center={location} zoom={13} style={{ height: '100%', width: '100%' }}>
+                            <TileLayer
+                              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            />
+                            <LocationMarker location={location} setLocation={setLocation} />
+                          </MapContainer>
+                        )}
+                     </div>
+                     <p className="text-xs text-[var(--color-text-secondary)] mt-2">Haz clic en el mapa para ajustar la ubicación de entrega.</p>
+                  </div>
+                </>
+              )}
             </div>
           </section>
 
@@ -80,7 +210,7 @@ export default function Checkout() {
           {/* Método de Pago */}
           <section>
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] flex items-center justify-center text-xs">2</span>
+              <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] flex items-center justify-center text-xs">3</span>
               Pago Manual
             </h3>
             

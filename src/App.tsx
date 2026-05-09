@@ -13,6 +13,7 @@ import Register from './pages/client/Register';
 import Home from './pages/client/Home';
 import Cart from './pages/client/Cart';
 import Checkout from './pages/client/Checkout';
+import MyOrders from './pages/client/MyOrders';
 
 // Admin Pages
 import Dashboard from './pages/admin/Dashboard';
@@ -55,6 +56,34 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 export default function App() {
+  const { updateSettings, settings } = useStore();
+
+  React.useEffect(() => {
+    const fetchBCV = async () => {
+      try {
+        // Fetcher for BCV rate
+        const response = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+        const data = await response.json();
+        const rate = data?.promedio || 500;
+        if (rate && typeof rate === 'number') {
+          if (rate !== settings.exchange_rate) {
+            updateSettings({ exchange_rate: rate });
+          }
+        }
+      } catch (err) {
+        // Silently fallback without logging to console to avoid cluttering if blocked by CORS or adblockers
+        if (settings.exchange_rate !== 500) {
+           updateSettings({ exchange_rate: 500 });
+        }
+      }
+    };
+    fetchBCV();
+    
+    // Refresh every few hours if needed
+    const interval = setInterval(fetchBCV, 1000 * 60 * 60 * 4);
+    return () => clearInterval(interval);
+  }, [settings.exchange_rate, updateSettings]);
+
   return (
     <BrowserRouter>
       <Routes>
@@ -70,6 +99,7 @@ export default function App() {
           <Route path="/home" element={<Home />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/my-orders" element={<MyOrders />} />
         </Route>
 
         {/* Admin Routes */}
